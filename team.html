@@ -15,13 +15,19 @@
         <a href="player.html">Player Profile</a>
     </div>
     <div class="mainContent">
-        <div id="gameList"></div>
+        <div id="playerList"></div>
+        <p>Nothing selected, so nothing to see</p>
         <div class="addition">
-            <input type="text" name="gameName" id="gameNameInput">
-            <input type="button" value="Submit" id="gameNameSubmit">
+            <input type="button" value="Open Form" id="playerFormOpen">
+        </div>
+        <div id="openForm">
+            <input type="text" name="playerName" id="playerName" placeholder="Player Name">
+            <input type="text" name="playerRole" id="playerRole" placeholder="Player Role">
+            <input type="button" value="Add Character Row" id="addCharacterRow">
+            <div id="charRow"></div>
+            <input type="button" value="Submit" id="playerSubmit">
         </div>
     </div>
-
     <script type="module" src="app.js"></script>
 </body>
 </html>
