@@ -170,61 +170,150 @@ if (teamList) {
 }
 
 // ==========================================
-// TEAM PAGE LOGIC (With Edit Support)
+// TEAM PAGE LOGIC (Multi-Form Repeater / Bulk Edit)
 // ==========================================
 let playerList = document.getElementById('playerList');
-let openForm = document.getElementById('openForm'); 
-let openFormButton = document.getElementById('playerFormOpen');
-
-let charRow = document.getElementById("charRow");
-let charRowButton = document.getElementById("addCharacterRow");
-let playerSubmitButton = document.getElementById("playerSubmit");
+let formContainer = document.getElementById('playerFormContainer'); // Your form container div
+let addPlayerFormButton = document.getElementById('playerFormOpen'); // The "Add Player" button
+let playerSubmitButton = document.getElementById('playerSubmit');
 
 const currentTeamId = localStorage.getItem('currentTeamId');
 
-// Track if we are editing an existing player (null means we are creating a new player)
-let editingPlayerId = null;
 
-// Helper function to dynamically add a character row and populate it if data exists
-const createCharacterRow = (charName = "", charCount = 0) => {
-    const rowWrapper = document.createElement('div');
-    rowWrapper.className = "character-input-group";
-    rowWrapper.style.marginBottom = "8px";
+/**
+ * Generates a complete standalone Player Form Block dynamically.
+ * Can take an existing player object for editing/bulk updates, or remain empty.
+ */
+const createPlayerFormCard = (playerData = null, docId = null) => {
+    if (!formContainer) return;
+
+    // Outer wrapper for this specific player card
+    const cardWrapper = document.createElement('div');
+    cardWrapper.className = "player-form-card";
+    cardWrapper.style.border = "1px solid #ccc";
+    cardWrapper.style.padding = "15px";
+    cardWrapper.style.marginBottom = "15px";
+    cardWrapper.style.borderRadius = "6px";
+    
+    // Store the database ID inside a data-attribute if it exists (crucial for updates!)
+    if (docId) {
+        cardWrapper.setAttribute('data-player-id', docId);
+    }
+
+    // Header / Delete Button block
+    const cardHeader = document.createElement('div');
+    cardHeader.style.display = "flex";
+    cardHeader.style.justifyContent = "space-between";
+    cardHeader.innerHTML = `<h3>${docId ? 'Edit Player' : 'New Player'}</h3>`;
+    
+    const removeCardBtn = document.createElement('button');
+    removeCardBtn.type = "button";
+    removeCardBtn.textContent = "Remove Form";
+    removeCardBtn.onclick = () => cardWrapper.remove();
+    cardHeader.appendChild(removeCardBtn);
+    cardWrapper.appendChild(cardHeader);
+
+    // Player Identity Fields (Name & Role)
+    const identityGroup = document.createElement('div');
+    identityGroup.style.marginBottom = "10px";
 
     const nameInput = document.createElement('input');
     nameInput.type = 'text';
-    nameInput.placeholder = 'Character Name';
-    nameInput.className = 'char-name-field';
-    nameInput.value = charName;
+    nameInput.placeholder = 'Player Name';
+    nameInput.className = 'player-name-field';
+    nameInput.value = playerData ? playerData.name : "";
+    nameInput.style.marginRight = "8px";
 
-    const countInput = document.createElement('input');
-    countInput.type = 'number';
-    countInput.placeholder = 'Times Played';
-    countInput.min = '0';
-    countInput.className = 'char-count-field';
-    countInput.value = charCount;
-    countInput.style.marginLeft = "8px";
+    const roleInput = document.createElement('input');
+    roleInput.type = 'text';
+    roleInput.placeholder = 'Role';
+    roleInput.className = 'player-role-field';
+    roleInput.value = playerData ? playerData.role : "";
 
-    rowWrapper.appendChild(nameInput);
-    rowWrapper.appendChild(countInput);
-    charRow.appendChild(rowWrapper);
+    identityGroup.appendChild(nameInput);
+    identityGroup.appendChild(roleInput);
+    cardWrapper.appendChild(identityGroup);
+
+    // Characters Subcollection Dynamic Section
+    const charSectionWrapper = document.createElement('div');
+    charSectionWrapper.className = "char-section-wrapper";
+    
+    const charRowContainer = document.createElement('div');
+    charRowContainer.className = "char-rows-container";
+    
+    const addCharRowBtn = document.createElement('button');
+    addCharRowBtn.type = "button";
+    addCharRowBtn.textContent = "+ Add Character Data";
+    addCharRowBtn.style.marginBottom = "10px";
+
+    // Inner helper function to safely append isolated nested rows 
+    const appendCharacterRow = (charName = "", charCount = 0) => {
+        const rowWrapper = document.createElement('div');
+        rowWrapper.className = "character-input-group";
+        rowWrapper.style.marginBottom = "6px";
+
+        const cName = document.createElement('input');
+        cName.type = 'text';
+        cName.placeholder = 'Character Name';
+        cName.className = 'char-name-field';
+        cName.value = charName;
+
+        const cCount = document.createElement('input');
+        cCount.type = 'number';
+        cCount.placeholder = 'Times Played';
+        cCount.min = '0';
+        cCount.className = 'char-count-field';
+        cCount.value = charCount;
+        cCount.style.marginLeft = "8px";
+
+        rowWrapper.appendChild(cName);
+        rowWrapper.appendChild(cCount);
+        charRowContainer.appendChild(rowWrapper);
+    };
+
+    addCharRowBtn.onclick = () => appendCharacterRow("", 0);
+
+    // If parsing existing records, auto-populate all recorded traits
+    if (playerData && playerData.characters) {
+        Object.entries(playerData.characters).forEach(([name, count]) => {
+            appendCharacterRow(name, count);
+        });
+    }
+
+    charSectionWrapper.appendChild(addCharRowBtn);
+    charSectionWrapper.appendChild(charRowContainer);
+    cardWrapper.appendChild(charSectionWrapper);
+
+    // Stick it down into our primary DOM tracking panel
+    formContainer.appendChild(cardWrapper);
 };
 
 if (playerList) {
-    // 1. Fetch & Display Players
+    // Keep an inventory array cache handy to allow transforming the whole list at once
+    let loadedPlayersCache = [];
+
+    // 1. Fetch and Display the Player Roster
     const displayPlayers = async () => {
         if (!currentGameId || !currentTeamId) return;
         try {
             const playersRef = collection(db, "games", currentGameId, "teams", currentTeamId, "players");
             const querySnapshot = await getDocs(playersRef);
+            
             playerList.innerHTML = "";
+            loadedPlayersCache = []; // Reset local cache array
 
             querySnapshot.forEach((doc) => {
                 const playerData = doc.data();
+                
+                // Keep record in memory for easy structural bulk loading later
+                loadedPlayersCache.push({ id: doc.id, data: playerData });
+
                 const p = document.createElement('p');
                 p.className = "editable-player-item";
-                p.style.cursor = "pointer"; // Visual cue that it's clickable
-                p.title = "Click to edit player details";
+                p.style.cursor = "pointer";
+                p.style.padding = "6px";
+                p.style.borderBottom = "1px dashed #eee";
+                p.title = "Click any player to flip the ENTIRE team into bulk edit mode!";
                 
                 const charsUsed = Object.entries(playerData.characters || {})
                     .map(([char, count]) => `${char} (${count}x)`)
@@ -232,26 +321,16 @@ if (playerList) {
 
                 p.innerHTML = `<strong>${playerData.name}</strong> - Role: ${playerData.role} ${charsUsed ? `[Plays: ${charsUsed}]` : ''}`;
                 
-                // CLICK EVENT TO POPULATE FORM FOR EDITING
+                // CLICK EVENT: Populates forms for the ENTIRE team at once
                 p.onclick = function() {
-                    // Set our global editing tracking state to this document's ID
-                    editingPlayerId = doc.id;
+                    formContainer.innerHTML = ""; // Wipe current working forms clean
                     
-                    // Populate the main fields
-                    document.getElementById('playerName').value = playerData.name;
-                    document.getElementById('playerRole').value = playerData.role;
-                    
-                    // Clear out old dynamic character rows, then rebuild them from player data
-                    charRow.innerHTML = "";
-                    if (playerData.characters) {
-                        Object.entries(playerData.characters).forEach(([name, count]) => {
-                            createCharacterRow(name, count);
-                        });
-                    }
-                    
-                    // Open the form and change submit button text to reflect editing status
-                    openForm.style.display = 'block';
-                    playerSubmitButton.textContent = "Update Player";
+                    // Generate editing form cards for every player saved in our cache
+                    loadedPlayersCache.forEach(playerRecord => {
+                        createPlayerFormCard(playerRecord.data, playerRecord.id);
+                    });
+
+                    playerSubmitButton.textContent = "Update All Players";
                 };
 
                 playerList.appendChild(p);
@@ -267,83 +346,76 @@ if (playerList) {
 
     displayPlayers();
 
-    // 2. Toggle Form Visibility
-    if (openFormButton) {
-        openFormButton.onclick = function(){
-            if (openForm.style.display === 'block') {
-                openForm.style.display = 'none';
-            } else {
-                // If opening blank, clear editing status and reset button text
-                editingPlayerId = null;
-                playerSubmitButton.textContent = "Submit Player";
-                openForm.style.display = 'block';
-            }
+    // 2. Add New Blank Player Form (Appends smoothly without clearing current inputs)
+    if (addPlayerFormButton) {
+        addPlayerFormButton.onclick = function() {
+            createPlayerFormCard(); // Creates a completely fresh form block
+            playerSubmitButton.textContent = "Save All Changes";
         };
     }
 
-    // 3. Generate Dynamic Character Inputs Safely
-    if (charRowButton) {
-        charRowButton.onclick = function() {
-            createCharacterRow("", 0); // Create an empty row
-        };
-    }
-
-    // 4. Submit or Update Everything to Firebase
+    // 3. Process, Clean, & Save Every Card Inside the Container to Firestore
     if (playerSubmitButton) {
         playerSubmitButton.onclick = async function () {
-            const nameField = document.getElementById('playerName');
-            const roleField = document.getElementById('playerRole');
+            const formCards = formContainer.querySelectorAll('.player-form-card');
 
-            if (!nameField || !roleField) return;
-
-            const playerName = nameField.value.trim();
-            const playerRole = roleField.value.trim();
-
-            if (playerName === "" || playerRole === "") {
-                alert("Please provide a Player Name and Role!");
+            if (formCards.length === 0) {
+                alert("There are no active player forms to process.");
                 return;
             }
 
-            const charactersDataMap = {};
-            const inputGroups = charRow.querySelectorAll('.character-input-group');
+            let successfulSaves = 0;
 
-            inputGroups.forEach(group => {
-                const charName = group.querySelector('.char-name-field').value.trim();
-                const charCount = parseInt(group.querySelector('.char-count-field').value, 10);
+            // Loop through every form card in the container
+            for (const card of formCards) {
+                const nameField = card.querySelector('.player-name-field');
+                const roleField = card.querySelector('.player-role-field');
+                
+                const playerName = nameField.value.trim();
+                const playerRole = roleField.value.trim();
 
-                if (charName !== "") {
-                    charactersDataMap[charName] = isNaN(charCount) ? 0 : charCount;
+                // Validation check for identity fields
+                if (playerName === "" || playerRole === "") {
+                    continue; // Skip unfinished cards or alert your user accordingly
                 }
-            });
 
-            // ID DETERMINATION STRATEGY:
-            // If editingPlayerId exists, we overwrite that specific document.
-            // If it's null, we generate a fresh clean slug from their name string.
-            const playerId = editingPlayerId ? editingPlayerId : playerName.toLowerCase().replace(/\s+/g, '-');
+                // Map character stats specific to this form block context
+                const charactersDataMap = {};
+                const inputGroups = card.querySelectorAll('.character-input-group');
 
-            try {
-                await setDoc(doc(db, "games", currentGameId, "teams", currentTeamId, "players", playerId), {
-                    name: playerName,
-                    role: playerRole,
-                    characters: charactersDataMap
+                inputGroups.forEach(group => {
+                    const charName = group.querySelector('.char-name-field').value.trim();
+                    const charCount = parseInt(group.querySelector('.char-count-field').value, 10);
+
+                    if (charName !== "") {
+                        charactersDataMap[charName] = isNaN(charCount) ? 0 : charCount;
+                    }
                 });
 
-                console.log(`Player successfully saved to Firestore!`);
-                
-                // Reset state variables completely back to pristine layout values
-                nameField.value = "";
-                roleField.value = "";
-                charRow.innerHTML = ""; 
-                openForm.style.display = 'none'; 
-                editingPlayerId = null;
-                playerSubmitButton.textContent = "Submit Player";
-                
-                displayPlayers(); // Refresh list interface target
-                
-            } catch (error) {
-                console.error("Error submitting player to Firestore: ", error);
-                alert("Submission failed. Check console for details.");
+                // Check if this card was generated from an existing player (has data attribute)
+                const existingId = card.getAttribute('data-player-id');
+                const playerId = existingId ? existingId : playerName.toLowerCase().replace(/\s+/g, '-');
+
+                try {
+                    await setDoc(doc(db, "games", currentGameId, "teams", currentTeamId, "players", playerId), {
+                        name: playerName,
+                        role: playerRole,
+                        characters: charactersDataMap
+                    });
+                    successfulSaves++;
+                } catch (error) {
+                    console.error(`Error saving record for ${playerName}: `, error);
+                }
             }
+
+            console.log(`Successfully batched and saved ${successfulSaves} player files.`);
+            
+            // Clean up the playground workspace
+            formContainer.innerHTML = "";
+            playerSubmitButton.textContent = "Save All Changes";
+            
+            // Refresh structural listing array view targets
+            displayPlayers();
         };
     }
 }

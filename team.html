@@ -4,30 +4,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="main.css">
-    <title>Document</title>
+    <title>Team Profile</title>
 </head>
 <body>
-    <h1>Landing</h1>
+    <h1>Team Profile</h1>
     <div class="navigation">
         <a href="index.html">Game Selection</a>
         <a href="game.html">Team List</a>
         <a href="team.html">Team Profile</a>
         <a href="player.html">Player Profile</a>
     </div>
+    
     <div class="mainContent">
+        <!-- Roster Display Area -->
         <div id="playerList"></div>
-        <p>Nothing selected, so nothing to see</p>
-        <div class="addition">
-            <input type="button" value="Open Form" id="playerFormOpen">
+        
+        <!-- Controls for managing the forms -->
+        <div class="addition" style="margin: 20px 0;">
+            <input type="button" value="Add a Player Form" id="playerFormOpen">
+            <input type="button" value="Submit All Changes" id="playerSubmit">
         </div>
-        <div id="openForm">
-            <input type="text" name="playerName" id="playerName" placeholder="Player Name">
-            <input type="text" name="playerRole" id="playerRole" placeholder="Player Role">
-            <input type="button" value="Add Character Row" id="addCharacterRow">
-            <div id="charRow"></div>
-            <input type="button" value="Submit" id="playerSubmit">
-        </div>
+
+        <!-- NEW: Dynamic Form Target Workspace (Do not delete this!) -->
+        <div id="playerFormContainer"></div>
     </div>
+
     <script type="module" src="app.js"></script>
 </body>
 </html>
